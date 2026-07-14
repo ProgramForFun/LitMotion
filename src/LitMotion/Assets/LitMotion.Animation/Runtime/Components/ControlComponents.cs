@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -16,6 +17,12 @@ namespace LitMotion.Animation.Components
                 .RunWithoutBinding();
         }
 
+        public override bool TryGetDuration(out float duration)
+        {
+            duration = delay;
+            return !float.IsNaN(duration);
+        }
+
         public override void OnStop() { }
     }
 
@@ -31,6 +38,12 @@ namespace LitMotion.Animation.Components
         {
             onPlay.Invoke();
             return LMotion.Create(0f, 1f, 0f).RunWithoutBinding();
+        }
+
+        public override bool TryGetDuration(out float duration)
+        {
+            duration = 0.0f;
+            return true;
         }
 
         public override void OnStop()
@@ -54,6 +67,28 @@ namespace LitMotion.Animation.Components
                     if (target == null) TrackedHandle.TryComplete();
                     if (!target.IsPlaying) TrackedHandle.TryComplete();
                 });
+        }
+
+        public override bool TryGetDuration(out float duration)
+        {
+            if (target == null)
+            {
+                duration = 0.0f;
+                return false;
+            }
+
+            return target.TryGetDuration(out duration);
+        }
+
+        internal override bool TryGetDuration(HashSet<LitMotionAnimation> calculatingAnimations, out float duration)
+        {
+            if (target == null)
+            {
+                duration = 0.0f;
+                return false;
+            }
+
+            return target.TryGetDuration(calculatingAnimations, out duration);
         }
 
         public override void OnResume()

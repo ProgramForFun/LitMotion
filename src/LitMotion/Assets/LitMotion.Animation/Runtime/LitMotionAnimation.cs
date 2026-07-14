@@ -8,14 +8,14 @@ namespace LitMotion.Animation
     [AddComponentMenu("LitMotion Animation")]
     public sealed class LitMotionAnimation : MonoBehaviour, ISerializationCallbackReceiver
     {
-        enum AutoPlayMode
+        public enum AutoPlayMode
         {
             None,
             OnStart,
             OnEnable
         }
 
-        enum AnimationMode
+        public enum AnimationMode
         {
             Parallel,
             Sequential
@@ -33,7 +33,13 @@ namespace LitMotion.Animation
         [HideInInspector, SerializeField] bool playOnAwake = true;
         [HideInInspector, SerializeField] int version;
 
+        HashSet<LitMotionAnimation> _Hash4CalcDuration = new HashSet<LitMotionAnimation>();
+
+        public AutoPlayMode PlayMode { get => autoPlayMode; set => autoPlayMode = value; }
+        public AnimationMode AnimMode { get => animationMode; set => animationMode = value; }
+        public bool PlayOnAwake { get => playOnAwake; set => playOnAwake = value; }
         public IReadOnlyList<LitMotionAnimationComponent> Components => components;
+
 
         void OnEnable()
         {
@@ -169,6 +175,53 @@ namespace LitMotion.Animation
         {
             Stop();
             Play();
+        }
+
+        public bool TryGetDuration(out float duration)
+        {
+			_Hash4CalcDuration.Clear();
+            return TryGetDuration(_Hash4CalcDuration, out duration);
+        }
+
+        internal bool TryGetDuration(HashSet<LitMotionAnimation> calculatingAnimations, out float duration)
+        {
+            duration = 0.0f;
+            if (!calculatingAnimations.Add(this))
+                return false;
+
+            try
+            {
+                if (components == null)
+                    return true;
+
+                foreach (LitMotionAnimationComponent component in components)
+                {
+                    if (component == null || !component.Enabled)
+                        continue;
+
+                    if (!component.TryGetDuration(calculatingAnimations, out float componentDuration))
+                        return false;
+
+                    switch (animationMode)
+                    {
+                        case AnimationMode.Parallel:
+                            duration = Math.Max(duration, componentDuration);
+                            break;
+                        case AnimationMode.Sequential:
+                            duration += componentDuration;
+                            break;
+                        default:
+                            duration = 0.0f;
+                            return false;
+                    }
+                }
+
+                return !float.IsNaN(duration);
+            }
+            finally
+            {
+                calculatingAnimations.Remove(this);
+            }
         }
 
         public bool IsActive

@@ -23,6 +23,11 @@ namespace LitMotion.Animation.Components
                 });
         }
 
+        public override bool TryGetDuration(out float duration)
+        {
+            return TryCalculateDuration(settings, out duration);
+        }
+
         public override void OnStop() { }
     }
 
@@ -73,6 +78,11 @@ namespace LitMotion.Animation.Components
                     // TODO: avoid allocation
                     state.onValueChanged.Invoke(x.ConvertToString());
                 });
+        }
+
+        public override bool TryGetDuration(out float duration)
+        {
+            return TryCalculateDuration(settings, out duration);
         }
 
         public override void OnStop() { }

@@ -50,6 +50,11 @@ namespace LitMotion.Animation
             return handle;
         }
 
+        public override bool TryGetDuration(out float duration)
+        {
+            return TryCalculateDuration(settings, out duration);
+        }
+
         protected abstract TValue GetValue(TObject target);
         protected abstract void SetValue(TObject target, in TValue value);
         protected abstract TValue GetRelativeValue(in TValue startValue, in TValue relativeValue);
