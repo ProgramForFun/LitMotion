@@ -2,6 +2,9 @@ using System;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 using LitMotion.Collections;
+#if UNITY_7000_0_OR_NEWER
+using Unity.Scripting.LifecycleManagement;
+#endif
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -12,9 +15,15 @@ namespace LitMotion
     /// <summary>
     /// Motion dispatcher.
     /// </summary>
-    public static class MotionDispatcher
+#if UNITY_7000_0_OR_NEWER
+    [AutoStaticsCleanup]
+#endif
+    public static partial class MotionDispatcher
     {
-        static class StorageCache<TValue, TOptions, TAdapter>
+#if UNITY_7000_0_OR_NEWER
+        [AutoStaticsCleanup]
+#endif
+        static partial class StorageCache<TValue, TOptions, TAdapter>
             where TValue : unmanaged
             where TOptions : unmanaged, IMotionOptions
             where TAdapter : unmanaged, IMotionAdapter<TValue, TOptions>
@@ -56,7 +65,10 @@ namespace LitMotion
             }
         }
 
-        static class RunnerCache<TValue, TOptions, TAdapter>
+#if UNITY_7000_0_OR_NEWER
+        [AutoStaticsCleanup]
+#endif
+        static partial class RunnerCache<TValue, TOptions, TAdapter>
             where TValue : unmanaged
             where TOptions : unmanaged, IMotionOptions
             where TAdapter : unmanaged, IMotionAdapter<TValue, TOptions>
@@ -144,7 +156,13 @@ namespace LitMotion
             };
         }
 
+#if UNITY_7000_0_OR_NEWER
+        [NoAutoStaticsCleanup] // Keeps a user-registered handler across Play mode transitions.
+#endif
         static Action<Exception> unhandledException = DefaultUnhandledExceptionHandler;
+#if UNITY_7000_0_OR_NEWER
+        [NoAutoStaticsCleanup] // Immutable lookup table.
+#endif
         static readonly PlayerLoopTiming[] playerLoopTimings = (PlayerLoopTiming[])Enum.GetValues(typeof(PlayerLoopTiming));
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -181,10 +199,14 @@ namespace LitMotion
         {
             foreach (var playerLoopTiming in playerLoopTimings)
             {
+                // Sync with the current time so the next Update does not see the whole elapsed time as one delta.
+                var isFixed = playerLoopTiming == PlayerLoopTiming.FixedUpdate;
+                var time = isFixed ? Time.fixedTimeAsDouble : Time.timeAsDouble;
+                var unscaledTime = isFixed ? Time.fixedUnscaledTimeAsDouble : Time.unscaledTimeAsDouble;
                 var span = GetRunnerList(playerLoopTiming).AsSpan();
                 for (int i = 0; i < span.Length; i++)
                 {
-                    span[i].Reset();
+                    span[i].Reset(time, unscaledTime, Time.realtimeSinceStartupAsDouble);
                 }
             }
         }
@@ -235,9 +257,15 @@ namespace LitMotion
     }
 
 #if UNITY_EDITOR
-    internal static class EditorMotionDispatcher
+#if UNITY_7000_0_OR_NEWER
+    [AutoStaticsCleanup]
+#endif
+    internal static partial class EditorMotionDispatcher
     {
-        static class Cache<TValue, TOptions, TAdapter>
+#if UNITY_7000_0_OR_NEWER
+        [AutoStaticsCleanup]
+#endif
+        static partial class Cache<TValue, TOptions, TAdapter>
             where TValue : unmanaged
             where TOptions : unmanaged, IMotionOptions
             where TAdapter : unmanaged, IMotionAdapter<TValue, TOptions>

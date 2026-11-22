@@ -1,13 +1,27 @@
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
+// Unity 7 also diagnoses directives in inactive branches. Suppress only this
+// legacy guard so older Unity keeps its original development-build behavior.
+#pragma warning disable UAC0009
+#if UNITY_7000_0_OR_NEWER
+#if UNITY_ENABLE_CHECKS || UNITY_EDITOR
 #define LITMOTION_DEBUG
 #endif
+#elif DEVELOPMENT_BUILD || UNITY_EDITOR
+#define LITMOTION_DEBUG
+#endif
+#pragma warning restore UAC0009
 
 using System;
 using System.Runtime.CompilerServices;
 using UnityEngine;
+#if UNITY_7000_0_OR_NEWER
+using Unity.Scripting.LifecycleManagement;
+#endif
 
 namespace LitMotion
 {
+#if UNITY_7000_0_OR_NEWER
+    [NoAutoStaticsCleanup] // Managed object pool; safe to reuse between Play mode sessions.
+#endif
     internal unsafe sealed class MotionBuilderBuffer<TValue, TOptions>
         where TValue : unmanaged
         where TOptions : unmanaged, IMotionOptions
