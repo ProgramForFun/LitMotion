@@ -8,7 +8,7 @@ namespace LitMotion
     internal interface IUpdateRunner
     {
         IMotionStorage Storage { get; }
-        public void Update(double time, double unscaledTime, double realtime);
+        public void Update(double time, double unscaledTime, double realtime, ref NativeList<int> completedIndexList);
         public void Reset(double time, double unscaledTime, double realtime);
     }
 
@@ -17,6 +17,8 @@ namespace LitMotion
         where TOptions : unmanaged, IMotionOptions
         where TAdapter : unmanaged, IMotionAdapter<TValue, TOptions>
     {
+        const int JobBatchSize = 16;
+
         public UpdateRunner(MotionStorage<TValue, TOptions, TAdapter> storage, double time, double unscaledTime, double realtime)
         {
             this.storage = storage;
@@ -34,18 +36,29 @@ namespace LitMotion
         public MotionStorage<TValue, TOptions, TAdapter> Storage => storage;
         IMotionStorage IUpdateRunner.Storage => storage;
 
-        public unsafe void Update(double time, double unscaledTime, double realtime)
+        public unsafe void Update(double time, double unscaledTime, double realtime, ref NativeList<int> completedIndexList)
         {
-            var count = storage.Count;
-            using var output = new NativeArray<TValue>(count, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-            using var completedIndexList = new NativeList<int>(count, Allocator.TempJob);
-
             var deltaTime = time - prevTime;
             var unscaledDeltaTime = unscaledTime - prevUnscaledTime;
             var realDeltaTime = realtime - prevRealtime;
             prevTime = time;
             prevUnscaledTime = unscaledTime;
             prevRealtime = realtime;
+
+            var count = storage.Count;
+            if (count == 0) return;
+
+            if (!completedIndexList.IsCreated)
+            {
+                completedIndexList = new NativeList<int>(count, Allocator.TempJob);
+            }
+            else
+            {
+                completedIndexList.Clear();
+                if (completedIndexList.Capacity < count) completedIndexList.Capacity = count;
+            }
+
+            using var output = new NativeArray<TValue>(count, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 
             fixed (MotionData<TValue, TOptions>* dataPtr = storage.GetDataSpan())
             {
@@ -59,12 +72,19 @@ namespace LitMotion
                     Output = output,
                     CompletedIndexList = completedIndexList.AsParallelWriter()
                 };
-                job.Schedule(count, 16).Complete();
+                if (count <= JobBatchSize)
+                {
+                    job.Run(count);
+                }
+                else
+                {
+                    job.Schedule(count, JobBatchSize).Complete();
+                }
 
                 // invoke delegates
                 var managedDataSpan = storage.GetManagedDataSpan();
                 var outputPtr = (TValue*)output.GetUnsafePtr();
-                for (int i = 0; i < managedDataSpan.Length; i++)
+                for (int i = 0; i < count; i++)
                 {
                     var currentDataPtr = dataPtr + i;
                     ref var state = ref currentDataPtr->Core.State;
@@ -100,7 +120,7 @@ namespace LitMotion
                 }
             }
 
-            storage.RemoveAll(completedIndexList);
+            if (completedIndexList.Length > 0) storage.RemoveAll(completedIndexList);
         }
 
         public void Reset(double time, double unscaledTime, double realtime)
